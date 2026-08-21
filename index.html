@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAX AI</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #121212; color: #fff; margin: 0; padding: 15px; display: flex; flex-direction: column; height: 92vh; }
+        #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+        .msg { padding: 12px 16px; border-radius: 15px; max-width: 80%; line-height: 1.4; }
+        .user { background: #007bff; align-self: flex-end; }
+        .max { background: #222; border: 1px solid #333; align-self: flex-start; }
+        .input-box { display: flex; gap: 8px; }
+        input { flex: 1; padding: 14px; border-radius: 10px; border: none; background: #222; color: #fff; font-size: 16px; }
+        button { padding: 14px 20px; background: #28a745; color: white; border: none; border-radius: 10px; font-weight: bold; }
+        .config { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="config">
+        <input type="password" id="apiKey" placeholder="Pega tu Groq API Key aquí">
+    </div>
+    <div id="chat"></div>
+    <div class="input-box">
+        <input type="text" id="txt" placeholder="Habla con MAX...">
+        <button onclick="enviar()">Enviar</button>
+    </div>
+
+    <script>
+        // Guarda la clave en el almacenamiento del navegador de tu celular
+        const savedKey = localStorage.getItem('groq_key');
+        if(savedKey) document.getElementById('apiKey').value = savedKey;
+
+        let nombreUsuario = localStorage.getItem('max_user_name') || '';
+
+        async function enviar() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const input = document.getElementById('txt');
+            const chat = document.getElementById('chat');
+
+            if(!apiKey) { alert('Ingresa tu API Key de Groq'); return; }
+            localStorage.setItem('groq_key', apiKey);
+
+            if(!input.value.trim()) return;
+
+            const text = input.value;
+            chat.innerHTML += `<div class="msg user">${text}</div>`;
+            input.value = '';
+            chat.scrollTop = chat.scrollHeight;
+
+            // Detección de nombre en cliente
+            const match = text.match(/(?:llámame|llamame|dime|mi nombre es|me llamo)\s+([a-záéíóúñ]+)/i);
+            if (match) {
+                nombreUsuario = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+                localStorage.setItem('max_user_name', nombreUsuario);
+            }
+
+            const promptSistema = `Eres MAX, una IA servicial, atenta y conversacional. 
+PERSONALIDAD: Madre protectora con humor negro sutil, ironía y cariño implícito.
+${nombreUsuario ? `- El usuario se llama ${nombreUsuario}. Dirígete a él por su nombre.` : ''}
+Responde en español de forma fluida y corta.`;
+
+            try {
+                const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: 'llama3-8b-8192',
+                        messages: [
+                            { role: 'system', content: promptSistema },
+                            { role: 'user', content: text }
+                        ]
+                    })
+                });
+
+                const data = await res.json();
+                const respuesta = data.choices[0].message.content;
+
+                chat.innerHTML += `<div class="msg max">${respuesta}</div>`;
+                chat.scrollTop = chat.scrollHeight;
+
+                // Reproducir respuesta por voz
+                const utterance = new SpeechSynthesisUtterance(respuesta);
+                utterance.lang = 'es-ES';
+                window.speechSynthesis.speak(utterance);
+
+            } catch (err) {
+                chat.innerHTML += `<div class="msg max">Error al conectar con la IA. Revisa tu API Key.</div>`;
+            }
+        }
+    </script>
+</body>
+</html>
